@@ -165,12 +165,14 @@ function convertLog() {
         });
     }
 
-    // (기본) 박스 깨짐 방지
+    // (기본) 다이스 깨짐 방지
     let fixStyle = `<style>
     .message {
         margin-top: 0 !important;
         margin-bottom: 0 !important;
         border: none !important;
+        word-break: break-all !important;
+        overflow-wrap: break-word !important;
     }
     .spacer {
         margin-top: 0 !important;
@@ -178,6 +180,20 @@ function convertLog() {
     }
     .avatar {
         top: 8px !important;
+    }
+    .formula, .formattedformula, .sheet-rolltemplate-coc-1, table {
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    .formattedformula {
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+        float: none !important;
+        display: block !important;
+    }
+    table {
+        table-layout: fixed !important;
+        word-wrap: break-word !important;
     }
 </style>`;
 
