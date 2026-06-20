@@ -1,101 +1,222 @@
-import discord
-from discord.ext import commands
-import random
-import os
-from threading import Thread
-from flask import Flask
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roll20 플레이로그 백업기</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .options {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #eee;
+            border-radius: 4px;
+        }
+        .options label {
+            margin-right: 15px;
+            cursor: pointer;
+            display: inline-block;
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        button {
+            flex: 1;
+            padding: 12px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .btn-copy {
+            background-color: #28a745;
+        }
+        .btn-copy:hover {
+            background-color: #218838;
+        }
+        .result-section {
+            border-top: 2px dashed #ccc;
+            padding-top: 20px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
 
-app = Flask('')
+<div class="container">
+    <h2>Roll20 로그 백업 변환기</h2>
+    <p>플레이로그 HTML을 복사해서 아래에 붙여넣어 주세요.</p>
+    
+    <textarea id="inputLog" placeholder="여기에 로그 HTML 내용을 붙여넣으세요."></textarea>
+    
+    <div class="options">
+        <strong>선택 기능:</strong><br>
+        <label>
+            <input type="checkbox" id="optGreyBackground"> 1. 발화자 배경 회색으로 통일
+        </label><br>
+        <label>
+            <input type="checkbox" id="optRemoveWhisper"> 2. 모든 귓속말 삭제
+        </label>
+    </div>
+    
+    <div class="btn-group">
+        <button onclick="convertLog()">로그 변환하기</button>
+    </div>
 
-@app.route('/')
-def home():
-    return "Bot is alive!"
+    <!-- 변환 결과 섹션 -->
+    <div class="result-section" id="resultSection" style="display: none;">
+        <h3>변환 완료!</h3>
+        <p>아래 상자의 내용을 전체 복사(Ctrl+A -> Ctrl+C)하여 티스토리 HTML 모드에 붙여넣으세요.</p>
+        <button class="btn-copy" onclick="copyResult()">클릭해서 전체 복사하기</button>
+        <textarea id="outputLog" readonly placeholder="변환 결과가 여기에 표시됩니다." style="margin-top: 10px; height: 250px; background-color: #fafafa;"></textarea>
+    </div>
+</div>
 
-def run_web():
-    app.run(host='0.0.0.0', port=10000)
+<script>
+function convertLog() {
+    let logText = document.getElementById('inputLog').value;
+    if (!logText.trim()) {
+        alert('변환할 로그 내용을 입력해주세요.');
+        return;
+    }
 
-intents = discord.Intents.default()
-intents.message_content = True
+    let parser = new DOMParser();
+    let doc = parser.parseFromString(logText, 'text/html');
 
-bot = commands.Bot(command_prefix="", intents=intents)
-
-@bot.event
-async def on_ready():
-    print(f'로그인 성공: {bot.user.name}')
-
-@bot.command(name="choice")
-async def choose_option(ctx, *args):
-    if len(args) == 0:
-        await ctx.reply("왜 불러.")
-        return
-    if len(args) == 1:
-        await ctx.reply("이미 정해진 것 같은데.")
-        return
-
-    picked = random.choice(args)
-    await ctx.reply(f"{picked}")
-
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
-    await bot.process_commands(message)
-
-    dice_pattern = r'(?:(\d+)\s*([<>=]+)\s*)?(?:(\d+))?[dD](\d+)(?:\s*(.+))?'
-    matches = re.findall(dice_pattern, message.content)
-
-    if not matches:
-        return
-
-    reply_messages = []
-
-    for match in matches:
-        target_val_str, op, x_str, y_str, label = match
+    // (기본) 밑줄 삭제
+    let anchors = doc.querySelectorAll('a');
+    anchors.forEach(a => {
+        let span = doc.createElement('span');
+        span.innerHTML = a.innerHTML;
+        if (a.className) span.className = a.className;
+        if (a.getAttribute('style')) span.setAttribute('style', a.getAttribute('style'));
         
-        x = int(x_str) if x_str else 1
-        y = int(y_str)
-        
-        rolls = [random.randint(1, y) for _ in range(x)]
-        total = sum(rolls)
-        
-        dice_expr = f"{x}d{y}" if x_str else f"d{y}"
-        label_text = f" '{label.strip()}'," if label else ""
-        
-        if target_val_str and op:
-            target_val = int(target_val_str)
+        a.parentNode.replaceChild(span, a);
+    });
 
-            if '<=' in op:
-                if total == 1:
-                    result_status = "대성공"
-                elif total <= target_val // 4:
-                    result_status = "극단적 성공"
-                elif total <= target_val // 2:
-                    result_status = "어려운 성공"
-                elif total <= target_val:
-                    result_status = "성공"
-                else:
-                    result_status = "실패"
-            else:
-                success = False
-                if '>=' in op and total >= target_val: success = True
-                elif '<' in op and total < target_val: success = True
-                elif '>' in op and total > target_val: success = True
-                elif '=' in op and total == target_val: success = True
-                result_status = "Success!" if success else "Failed"
+    // (기본) 다이스 깨짐 방지
+    let allElements = doc.querySelectorAll('*');
+    allElements.forEach(el => {
+        let style = el.getAttribute('style');
+        if (style && style.includes('background: rgb(255, 255, 255);') && style.includes('width:')) {
+            let newStyle = style.replace(/width:\s*[^;]+;?/, 'width: 100%;');
+            el.setAttribute('style', newStyle);
+        }
+    });
 
-            reply_text = f"{label_text} **{result_status}** ⟵ {target_val} {op} {total} ⟵ {target_val} {op} {rolls} {dice_expr}"
+    // (기본) hidden 삭제
+    let hiddenElements = doc.querySelectorAll('.hidden, [hidden], .flyout, .hidden-message');
+    hiddenElements.forEach(el => el.remove());
 
-        else:
-            reply_text = f"**{total}** ⟵ {rolls} {dice_expr}{label_text}"
-            
-        reply_messages.append(reply_text)
+    // (선택) 귓속말 삭제
+    if (document.getElementById('optRemoveWhisper').checked) {
+        let whispers = doc.querySelectorAll('.message.private.whisper');
+        whispers.forEach(el => el.remove());
+    }
 
-    if reply_messages:
-        await message.reply("\n".join(reply_messages))
+    // (선택) 발화자 파란배경 회색으로
+    if (document.getElementById('optGreyBackground').checked) {
+        let blueMessages = doc.querySelectorAll('.message.you');
+        blueMessages.forEach(msg => {
+            let style = msg.getAttribute('style');
+            if (style) {
+                let newStyle = style.replace(/background-color:\s*rgb\(211,\s*229,\s*245\);?/, 'background-color: rgb(241, 241, 241);');
+                msg.setAttribute('style', newStyle);
+            }
 
-if __name__ == "__main__":
-    t = Thread(target=run_web)
-    t.start()
+            let spacer = msg.querySelector('.spacer');
+            if (spacer) {
+                let spacerStyle = spacer.getAttribute('style');
+                if (spacerStyle) {
+                    let newSpacerStyle = spacerStyle.replace(/background-color:\s*rgb\(177,\s*217,\s*250\);?/, 'background-color: rgb(225, 225, 225);');
+                    spacer.setAttribute('style', newSpacerStyle);
+                }
+            }
+        });
+    }
 
-    TOKEN = os.environ.get("DISCORD_TOKEN")
-    bot.run(TOKEN)
+    // (기본) 다이스 깨짐 방지
+    let fixStyle = `<style>
+    .message {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        border: none !important;
+        word-break: break-all !important;
+        overflow-wrap: break-word !important;
+    }
+    .spacer {
+        margin-top: 0 !important;
+        margin-bottom: 8px !important;
+    }
+    .avatar {
+        top: 8px !important;
+    }
+    .formula, .formattedformula, .sheet-rolltemplate-coc-1, table {
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    .formattedformula {
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+        float: none !important;
+        display: block !important;
+    }
+    table {
+        table-layout: fixed !important;
+        word-wrap: break-word !important;
+    }
+</style>`;
+
+    let resultHTML = "<div>" + fixStyle + "\n" + doc.body.innerHTML + "\n</div>";
+    document.getElementById('outputLog').value = resultHTML;
+    document.getElementById('resultSection').style.display = 'block';
+    document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+function copyResult() {
+    let outputTextarea = document.getElementById('outputLog');
+    outputTextarea.select();
+    outputTextarea.setSelectionRange(0, 99999);
+
+    navigator.clipboard.writeText(outputTextarea.value)
+        .then(() => {
+            alert('변환된 코드가 클립보드에 복사되었습니다! 티스토리 글쓰기(HTML 모드)에 바로 붙여넣으세요.');
+        })
+        .catch(err => {
+            alert('자동 복사에 실패했습니다. 상자 안의 텍스트를 직접 전체 선택(Ctrl+A)하여 복사해주세요.');
+        });
+}
+</script>
+
+</body>
+</html>
